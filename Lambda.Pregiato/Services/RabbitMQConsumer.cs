@@ -18,7 +18,8 @@ public class RabbitMQConsumer: IRabbitMQConsumer
     private readonly IContractRepository _contractRepository;
     private readonly IContractService _contractService;
     private readonly LambdaContextDB _lambdaContextDB;
-    private readonly IModelRepository _modelRepository; 
+    private readonly IModelRepository _modelRepository;
+    private readonly ConnectionFactory _factory;
 
     public RabbitMQConsumer( IContractRepository contractRepository, IContractService contractService, IModelRepository modelRepository ,LambdaContextDB lambdaContext)
     {
@@ -26,16 +27,14 @@ public class RabbitMQConsumer: IRabbitMQConsumer
             ?? "amqps://guest:guest@localhost:5672"; 
 
         _queueName = Environment.GetEnvironmentVariable("RABBITMQ_QUEUE")
-            ?? "sqs-inboud-sendfile";    
+            ?? "sqs-inboud-sendfile";  
+        
         _contractRepository = contractRepository;
         _contractService = contractService;
         _lambdaContextDB = lambdaContext;
         _modelRepository = modelRepository;
-    }
 
-    public async Task StartConsuming()
-    {
-        var factory = new ConnectionFactory()
+        _factory = new ConnectionFactory()
         {
             HostName = "mouse.rmq5.cloudamqp.com",
             VirtualHost = "ewxcrhtv",
@@ -45,41 +44,58 @@ public class RabbitMQConsumer: IRabbitMQConsumer
             AutomaticRecoveryEnabled = true,
             NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
         };
+    }
 
-
-        var connection = await factory.CreateConnectionAsync();
-        var channel = await connection.CreateChannelAsync();
+    public async Task StartConsuming()
+    {
+        using var connection = await _factory.CreateConnectionAsync();
+        using var channel = await connection.CreateChannelAsync();
 
         var consumer = new AsyncEventingBasicConsumer(channel);
+        string receivedMessage = string.Empty; 
 
-        consumer.ReceivedAsync += (model, ea) =>
+        consumer.ReceivedAsync += async (model, ea) =>
         {
-           
             var body = ea.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
+
+            Console.WriteLine($" Mensagem Recebida: {message}");
             try
             {
                 var contractMessage = JsonSerializer.Deserialize<ContractMessage>(message);
-                ProcessMessage(contractMessage);
 
+                if (contractMessage != null)
+                {
+                    ProcessMessage(contractMessage);
+                    receivedMessage = message;
+                }
+                else
+                {
+                    Console.WriteLine(" Mensagem inválida");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($" Erro ao processar mensagem: {ex.Message}");
             }
 
-            Console.WriteLine($" [x] Received {message}");
-            return Task.CompletedTask;
+            await Task.CompletedTask;
         };
 
         await channel.BasicConsumeAsync(queue: _queueName, autoAck: true, consumer: consumer);
 
-        Console.WriteLine(" Aguardando mensagens... Pressione Ctrl+C para sair.");
-        Console.ReadLine();
+        Console.WriteLine("Aguardando mensagens... Pressione Ctrl+C para sair.");
+
+        while (string.IsNullOrEmpty(receivedMessage))
+        {
+            await Task.Delay(500); 
+        }
+
     }
 
     public async Task ProcessMessage(ContractMessage contractMessage)
     {
+
 
         foreach (var id in contractMessage.ContractIds)
         {
@@ -95,7 +111,7 @@ public class RabbitMQConsumer: IRabbitMQConsumer
                     byte[] pdfBytes;
                     pdfBytes = await _contractService.ExtractBytesFromString(contentString);
                     
-                    var contractFle = File.WriteAllBytesAsync(contract.ContractFilePath ,pdfBytes);
+                    var contractFle = File.WriteAllBytesAsync(contract.ContractFilePath ,pdfBytes);                 
 
                     var model = await _modelRepository.GetModelByCriteriaAsync(contractMessage.CpfModel);
 
@@ -105,8 +121,7 @@ public class RabbitMQConsumer: IRabbitMQConsumer
                 {
                     Console.WriteLine($" Contrato não encontrado para ID: {contractId}");
                 }
-            }
-          
+            }        
         }
     }
 }
