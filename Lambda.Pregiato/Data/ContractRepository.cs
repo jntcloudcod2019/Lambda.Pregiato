@@ -6,9 +6,9 @@ namespace Lambda.Pregiato.Data
 {
     public class ContractRepository : IContractRepository
     {
-        private readonly LambdaContext _lambdaContext;
+        private readonly LambdaContextDB _lambdaContext;
 
-        public ContractRepository(LambdaContext lambdaContext) 
+        public ContractRepository(LambdaContextDB lambdaContext) 
         {
              _lambdaContext = lambdaContext;
         }

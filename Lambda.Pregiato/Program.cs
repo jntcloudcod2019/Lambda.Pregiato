@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 
-
 var config = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -18,14 +17,17 @@ builder.Configuration.AddConfiguration(config);
 
 var connectionString = config.GetConnectionString("DefaultConnection");
 
-builder.Services.AddDbContext<LambdaContext>(options =>
+builder.Services.AddDbContext<LambdaContextDB>(options =>
     options.UseNpgsql(connectionString)
            .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
            .LogTo(Console.WriteLine, LogLevel.Information));
 
 
+builder.Services.AddDbContext<LambdaContextDB>();
+builder.Services.AddScoped<RabbitMQConsumer>();
 builder.Services.AddScoped<IContractService, ContractServices>();
 builder.Services.AddScoped<IContractRepository, ContractRepository>();
+builder.Services.AddScoped<IModelRepository, ModelRepository>();    
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -44,5 +46,12 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+Task.Run(async () =>
+{
+    using var scope = app.Services.CreateScope();
+    var consumer = scope.ServiceProvider.GetRequiredService<RabbitMQConsumer>();
+    consumer.StartConsuming();
+});
 
 app.Run();
