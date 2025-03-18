@@ -6,7 +6,7 @@ namespace Lambda.Pregiato.Interface
     {
         Task StartConsuming();
 
-        Task ProcessMessage(ContractMessage contractMessage);
+        Task<string> ProcessMessage(ContractMessage contractMessage);
 
     }
 }

@@ -28,6 +28,7 @@ builder.Services.AddScoped<RabbitMQConsumer>();
 builder.Services.AddScoped<IContractService, ContractServices>();
 builder.Services.AddScoped<IContractRepository, ContractRepository>();
 builder.Services.AddScoped<IModelRepository, ModelRepository>();
+builder.Services.AddScoped<IAutentiqueService, AutentiqueService>();    
 
 // Adicionando suporte a controllers
 builder.Services.AddControllers();

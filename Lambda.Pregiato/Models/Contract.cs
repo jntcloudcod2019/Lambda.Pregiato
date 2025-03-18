@@ -37,7 +37,7 @@ namespace Lambda.Pregiato.Models
         public string? DataAgendamento { get; set; } = "N/A";
         public string ?HorarioAgendamento { get; set; } = "N/A";
         public decimal? ValorCache { get; set; }
-        public string ContractFilePath { get; set; } = string.Empty;
+        public string ContractFilePath { get; set; } 
         public byte[] Content { get; set; }
         public string ? TemplateFileName { get; }
         public int? CodProposta { get; set; }
