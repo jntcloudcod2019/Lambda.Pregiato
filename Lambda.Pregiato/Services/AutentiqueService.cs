@@ -10,10 +10,11 @@ public class AutentiqueService : IAutentiqueService
     private readonly string _token = "4ea6a0455f8e2e02b2f299be01d1a0949b24ceaf8d8bf7e7c5b56cff133c1f71" ?? Environment.GetEnvironmentVariable("AUTENTIQUE_TOKEN");
     private readonly Logger _logger; 
 
-    public AutentiqueService(IModelRepository modelRepository)
+    public AutentiqueService()
     {
         _httpClient = new HttpClient();
         _logger = new Logger(); 
+    }
 
     public async Task<string> CreateDocumentAsync(string documentName, string documentBase64, Model model)
     {
