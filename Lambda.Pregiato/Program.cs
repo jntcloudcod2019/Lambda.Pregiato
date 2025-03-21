@@ -15,24 +15,19 @@ var config = new ConfigurationBuilder()
 
 builder.Configuration.AddConfiguration(config);
 
-
 var connectionString = config.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<LambdaContextDB>(options =>
     options.UseNpgsql(connectionString)
            .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
            .LogTo(Console.WriteLine, LogLevel.Information));
 
-
 builder.Services.AddScoped<RabbitMQConsumer>();
 builder.Services.AddScoped<IContractService, ContractServices>();
 builder.Services.AddScoped<IContractRepository, ContractRepository>();
 builder.Services.AddScoped<IModelRepository, ModelRepository>();
-builder.Services.AddScoped<IAutentiqueService, AutentiqueService>();    
-
+builder.Services.AddScoped<IAutentiqueService, AutentiqueService>();
 
 builder.Services.AddControllers();
-
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -52,14 +47,13 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lambda Pregiato API v1");
-        c.RoutePrefix = string.Empty; 
+        c.RoutePrefix = string.Empty;
     });
 }
 
@@ -67,9 +61,13 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
+// Configuração dinâmica da porta
+var port = Environment.GetEnvironmentVariable("PORT") ?? "3030"; // 3030 como fallback
+app.Urls.Add($"http://0.0.0.0:{port}");
+
 var scope = app.Services.CreateScope();
 var consumer = scope.ServiceProvider.GetRequiredService<RabbitMQConsumer>();
 
 Task.Run(() => consumer.StartConsuming());
-app.Urls.Add("http://localhost:7070");
+
 app.Run();
