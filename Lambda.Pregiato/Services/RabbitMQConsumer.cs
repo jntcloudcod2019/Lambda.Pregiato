@@ -5,6 +5,7 @@ using Lambda.Pregiato.Services.ModelService;
 using System.Text.Json;
 using Lambda.Pregiato.Interface;
 using Lambda.Pregiato.Data;
+using System.Reflection;
 
 public class RabbitMQConsumer : IRabbitMQConsumer
 {
@@ -48,13 +49,19 @@ public class RabbitMQConsumer : IRabbitMQConsumer
     public async Task StartConsuming()
     {
         using var connection = await _factory.CreateConnectionAsync();
+        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Inicando processo de consumo de mensagem.");
+
         using var channel = await connection.CreateChannelAsync();
+        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Criando conexão... {connection}.");
 
         var consumer = new AsyncEventingBasicConsumer(channel);
+        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Conexão criada... {channel}");
+
         string receivedMessage = string.Empty;
 
         consumer.ReceivedAsync += async (model, ea) =>
         {
+            Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} |Consumindo mensagem...");
             var body = ea.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
 
@@ -65,6 +72,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
 
                 if (contractMessage != null)
                 {
+                    Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} |Processando mensagem.");
                     await ProcessMessage(contractMessage);
                     receivedMessage = message;
                 }
@@ -89,26 +97,35 @@ public class RabbitMQConsumer : IRabbitMQConsumer
     {
         if (string.IsNullOrEmpty(contractMessage.CpfModel) && string.IsNullOrEmpty(contractMessage.ContractIds.ToString()))
         {
-           Console.WriteLine("Parametros para envio de contratos vazio.");
+            Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} |  {contractMessage}.");
         }
 
         var model = await _modelRepository.GetModelByCriteriaAsync(contractMessage.CpfModel);
 
-        if (model == null) { throw new Exception("Modelos não encontrado."); }
-
+        if (model == null ) { Console.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss} |  Falha ao buscar dado: {model }."); }
+        
         foreach (var id in contractMessage.ContractIds)
         {
             if (Guid.TryParse(id, out Guid contractId))
             {
+                Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Buscando contrato: {id}.");
                 var contract = await _contractRepository.GetContractById(contractId);
                 if (contract != null)
                 {
+                    Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Contrato = {id} encontrado.");
+
                     try
                     {
                         string contentString = await _contractService.ConvertBytesToString(contract.Content);
                         byte[] pdfBytes = await _contractService.ExtractBytesFromString(contentString);
                         string pdfBase64 = Convert.ToBase64String(pdfBytes);
+
+                        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} |Convertando contrato para base64.");
+
                         string nameFile = contract.ContractFilePath;
+
+                        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Inciando processo de criar contrato no Autentique.");
+
                         var result = await _autentiqueService.CreateDocumentAsync(nameFile, pdfBase64, model);
                     }
                     catch (Exception ex)

@@ -67,6 +67,6 @@ app.Urls.Add($"http://0.0.0.0:{port}");
 var scope = app.Services.CreateScope();
 var consumer = scope.ServiceProvider.GetRequiredService<RabbitMQConsumer>();
 
-Task.Run(() => consumer.StartConsuming());
+  await Task.Run(() => consumer.StartConsuming());
 
 app.Run();

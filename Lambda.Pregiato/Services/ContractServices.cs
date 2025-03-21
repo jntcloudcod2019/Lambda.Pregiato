@@ -8,11 +8,14 @@ namespace Lambda.Pregiato.Services
 
         public async Task<string> ConvertBytesToString(byte[] bytes)
         {
-            return Encoding.UTF8.GetString(bytes);
+            Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Convertando contrato{bytes} para string.");
+            return await Task.FromResult(Encoding.UTF8.GetString(bytes));
+            Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Contrato:{bytes} convertido com sucesso.");
         }
 
         public async Task<byte[]> ExtractBytesFromString(string content)
         {
+            Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} Extraindo bytes {content}.");
             int startIndex = content.IndexOf('[') + 1;
             int endIndex = content.LastIndexOf(']');
 
@@ -21,8 +24,8 @@ namespace Lambda.Pregiato.Services
             byte[] bytes = byteString.Split(',')
                                      .Select(b => byte.Parse(b.Trim()))
                                      .ToArray();
-
-            return bytes;
+            Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Extração finalizada com êxito.");
+            return await Task.FromResult(bytes);
         }
     }
 }
