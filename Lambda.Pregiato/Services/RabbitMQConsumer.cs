@@ -1,16 +1,10 @@
 ﻿using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System;
 using System.Text;
 using Lambda.Pregiato.Services.ModelService;
 using System.Text.Json;
-using RabbitMQ.Client;
 using Lambda.Pregiato.Interface;
-using Lambda.Pregiato.Models;
-using Lambda.Pregiato.Services;
-using System.Diagnostics.Contracts;
 using Lambda.Pregiato.Data;
-using System.Runtime.CompilerServices;
 
 public class RabbitMQConsumer : IRabbitMQConsumer
 {
@@ -30,11 +24,8 @@ public class RabbitMQConsumer : IRabbitMQConsumer
         IAutentiqueService autentiqueService,
         LambdaContextDB lambdaContext)
     {
-        _rabbitMqUri = Environment.GetEnvironmentVariable("RABBITMQ_URI")
-            ?? "amqps://guest:guest@localhost:5672";
-
-        _queueName = Environment.GetEnvironmentVariable("RABBITMQ_QUEUE")
-            ?? "sqs-inboud-sendfile";
+        _rabbitMqUri = Environment.GetEnvironmentVariable("RABBITMQ_URI")?? "amqps://guest:guest@localhost:5672";
+        _queueName = Environment.GetEnvironmentVariable("RABBITMQ_QUEUE") ?? "sqs-inboud-sendfile";
 
         _contractRepository = contractRepository;
         _contractService = contractService;
@@ -76,10 +67,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
                 {
                     await ProcessMessage(contractMessage);
                     receivedMessage = message;
-
-
                 }
-
             }
             catch (Exception ex)
             {
@@ -88,27 +76,26 @@ public class RabbitMQConsumer : IRabbitMQConsumer
         };
 
         await channel.BasicConsumeAsync(queue: _queueName, autoAck: true, consumer: consumer);
-       
-        await channel.CloseAsync();
-        await connection.CloseAsync();
 
         Console.WriteLine("Aguardando mensagens... Pressione Ctrl+C para sair.");
 
         while (string.IsNullOrEmpty(receivedMessage))
         {
-            await Task.Delay(500);
+            await Task.Delay(Timeout.Infinite);
         }
     }
 
     public async Task<string> ProcessMessage(ContractMessage contractMessage)
      {
-        var model = await _modelRepository.GetModelByCriteriaAsync(contractMessage.CpfModel);
-        if (model == null)
+        if (string.IsNullOrEmpty(contractMessage.CpfModel) && string.IsNullOrEmpty( contractMessage.ContractIds.ToString()))
         {
-            Console.WriteLine(" Modelo não encontrado.");
-            return "Modelo não encontrado";
+            throw new Exception("Parametros para envio de contratos vazio.");
         }
 
+        var model = await _modelRepository.GetModelByCriteriaAsync(contractMessage.CpfModel);
+
+        if (model == null) { throw new Exception("Modelos não encontrado."); }
+        
         foreach (var id in contractMessage.ContractIds)
         {
             if (Guid.TryParse(id, out Guid contractId))
@@ -122,12 +109,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
                         byte[] pdfBytes = await _contractService.ExtractBytesFromString(contentString);
                         string pdfBase64 = Convert.ToBase64String(pdfBytes);
                         string nameFile = contract.ContractFilePath;
-
-                        Console.WriteLine($" Enviando contrato {nameFile} para Autentique...");
-
-                        var result = await _autentiqueService.CreateDocumentAsync(nameFile, pdfBase64);
-
-                        Console.WriteLine($" Documento enviado com sucesso! Resposta: {result}");
+                        var result = await _autentiqueService.CreateDocumentAsync(nameFile, pdfBase64, model);
                     }
                     catch (Exception ex)
                     {
@@ -139,9 +121,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
                     Console.WriteLine($" Erro: Contrato ID {contractId} não encontrado.");
                 }
             }
-
         }
-
         return "Processamento concluído.";
     }
 }

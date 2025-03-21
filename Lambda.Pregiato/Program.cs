@@ -6,7 +6,6 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//  Carregando as configurações
 var config = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -16,24 +15,24 @@ var config = new ConfigurationBuilder()
 
 builder.Configuration.AddConfiguration(config);
 
-//  Configurando o banco de dados
+
 var connectionString = config.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<LambdaContextDB>(options =>
     options.UseNpgsql(connectionString)
            .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
            .LogTo(Console.WriteLine, LogLevel.Information));
 
-//  Injetando dependências
+
 builder.Services.AddScoped<RabbitMQConsumer>();
 builder.Services.AddScoped<IContractService, ContractServices>();
 builder.Services.AddScoped<IContractRepository, ContractRepository>();
 builder.Services.AddScoped<IModelRepository, ModelRepository>();
 builder.Services.AddScoped<IAutentiqueService, AutentiqueService>();    
 
-// Adicionando suporte a controllers
+
 builder.Services.AddControllers();
 
-//  Configurando Swagger
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -53,14 +52,14 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Configurando Middleware do Swagger
+
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lambda Pregiato API v1");
-        c.RoutePrefix = string.Empty; // Swagger disponível na raiz do app
+        c.RoutePrefix = string.Empty; 
     });
 }
 
