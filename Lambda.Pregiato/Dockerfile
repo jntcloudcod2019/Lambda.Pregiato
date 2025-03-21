@@ -6,10 +6,10 @@ EXPOSE 3030
 # Etapa 2: Construção da aplicação
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["Lambda.Pregiato/Lambda.Pregiato.csproj", "Lambda.Pregiato/"]
-RUN dotnet restore "./Lambda.Pregiato/Lambda.Pregiato.csproj"
+COPY ["Lambda.Pregiato.csproj", "./"]
+RUN dotnet restore "./Lambda.Pregiato.csproj"
 COPY . .
-WORKDIR "/src/Lambda.Pregiato"
+WORKDIR "/src"
 RUN dotnet build "./Lambda.Pregiato.csproj" -c Release -o /app/build
 
 # Etapa 3: Publicação
