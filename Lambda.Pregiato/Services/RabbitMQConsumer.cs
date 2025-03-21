@@ -16,7 +16,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
     private readonly IAutentiqueService _autentiqueService;
     private readonly LambdaContextDB _lambdaContextDB;
     private readonly ConnectionFactory _factory;
-    private readonly Logger _logger; 
+
     public RabbitMQConsumer(
         IContractRepository contractRepository,
         IContractService contractService,
@@ -26,6 +26,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
     {
         _rabbitMqUri = Environment.GetEnvironmentVariable("RABBITMQ_URI") ?? "amqps://guest:guest@localhost:5672";
         _queueName = Environment.GetEnvironmentVariable("RABBITMQ_QUEUE") ?? "sqs-inboud-sendfile";
+
         _contractRepository = contractRepository;
         _contractService = contractService;
         _lambdaContextDB = lambdaContext;
@@ -42,13 +43,10 @@ public class RabbitMQConsumer : IRabbitMQConsumer
             AutomaticRecoveryEnabled = true,
             NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
         };
-
-        _logger = new Logger(); 
     }
 
     public async Task StartConsuming()
     {
-        _logger.Log("Iniciando serviço de consumo de mensagem...");
         using var connection = await _factory.CreateConnectionAsync();
         using var channel = await connection.CreateChannelAsync();
 
@@ -60,27 +58,26 @@ public class RabbitMQConsumer : IRabbitMQConsumer
             var body = ea.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
 
-            _logger.LogInfo($"Mensagem Recebida: {message}");
+            Console.WriteLine($" Mensagem Recebida: {message}");
             try
             {
                 var contractMessage = JsonSerializer.Deserialize<ContractMessage>(message);
 
                 if (contractMessage != null)
                 {
-                    _logger.Log("Processando mensagem...");
                     await ProcessMessage(contractMessage);
                     receivedMessage = message;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Erro ao processar mensagem: {ex.Message}", ex);
+                Console.WriteLine($" Erro ao processar mensagem: {ex.Message}");
             }
         };
 
         await channel.BasicConsumeAsync(queue: _queueName, autoAck: true, consumer: consumer);
 
-        _logger.Log("Aguardando mensagens... Pressione Ctrl+C para sair.");
+        Console.WriteLine("Aguardando mensagens... Pressione Ctrl+C para sair.");
 
         while (string.IsNullOrEmpty(receivedMessage))
         {
@@ -90,35 +87,24 @@ public class RabbitMQConsumer : IRabbitMQConsumer
 
     public async Task<string> ProcessMessage(ContractMessage contractMessage)
     {
-        _logger.LogInfo($"Verificando mensagem {contractMessage}...");
-
         if (string.IsNullOrEmpty(contractMessage.CpfModel) && string.IsNullOrEmpty(contractMessage.ContractIds.ToString()))
         {
-            _logger.LogError("Dados do modelo inconsistentes.");
+           Console.WriteLine("Parametros para envio de contratos vazio.");
         }
 
-        _logger.LogInfo($"Buscando dados do modelo portador do CPF: {contractMessage.CpfModel}.");
         var model = await _modelRepository.GetModelByCriteriaAsync(contractMessage.CpfModel);
 
-        if (model == null)
-        {
-            _logger.LogError($"Modelo {contractMessage.CpfModel} não encontrado na base de dados.");
-        }
-
-        _logger.LogInfo($"Dados do modelo: {model.Name} | Portador do CPF: {model.CPF}.");
+        if (model == null) { throw new Exception("Modelos não encontrado."); }
 
         foreach (var id in contractMessage.ContractIds)
         {
             if (Guid.TryParse(id, out Guid contractId))
             {
-                _logger.LogInfo($"Buscando contrato: {contractId}.");
                 var contract = await _contractRepository.GetContractById(contractId);
                 if (contract != null)
                 {
-                    _logger.LogInfo($"Contrato {contractId} encontrado.");
                     try
                     {
-                        _logger.LogInfo($"Processando contrato {contractId}.");
                         string contentString = await _contractService.ConvertBytesToString(contract.Content);
                         byte[] pdfBytes = await _contractService.ExtractBytesFromString(contentString);
                         string pdfBase64 = Convert.ToBase64String(pdfBytes);
@@ -127,12 +113,12 @@ public class RabbitMQConsumer : IRabbitMQConsumer
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"Erro ao criar documento: {ex.Message}", ex);
+                        Console.WriteLine($" Erro ao criar documento: {ex.Message}\n{ex.StackTrace}");
                     }
                 }
                 else
                 {
-                    _logger.LogError($"Erro: Contrato ID {contractId} não encontrado.");
+                    Console.WriteLine($" Erro: Contrato ID {contractId} não encontrado.");
                 }
             }
         }
