@@ -1,86 +1,67 @@
 ﻿using Lambda.Pregiato.Interface;
-using Lambda.Pregiato.Models;
-using Newtonsoft.Json;
-using RestSharp;
+using Lambda.Pregiato.Services.ModelService;
 
-public class AutentiqueService : IAutentiqueService
+public async Task ProcessMessage(ContractMessage contractMessage)
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _apiUrl = Environment.GetEnvironmentVariable("AUTENTIQUE_API_URL") ?? "https://api.autentique.com.br/v2/graphql";
-    private readonly string _token = "4ea6a0455f8e2e02b2f299be01d1a0949b24ceaf8d8bf7e7c5b56cff133c1f71" ?? Environment.GetEnvironmentVariable("AUTENTIQUE_TOKEN");
-    private readonly Logger _logger; 
-
-    public AutentiqueService()
+    try
     {
-        _httpClient = new HttpClient();
-        _logger = new Logger(); 
-    }
+        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Verificando mensagem {contractMessage}...");
 
-    public async Task<string> CreateDocumentAsync(string documentName, string documentBase64, Model model)
-    {
-        var client = new RestClient(_apiUrl);
-        var request = new RestRequest();
-        request.Method = Method.Post;
-
-        request.AddHeader("Authorization", $"Bearer {_token}");
-        request.AddHeader("Content-Type", "multipart/form-data");
-
-        try
+        if (string.IsNullOrEmpty(contractMessage.CpfModel) && string.IsNullOrEmpty(contractMessage.ContractIds.ToString()))
         {
-            string operations = JsonConvert.SerializeObject(new
+            Console.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Dados do modelo inconsistentes.");
+            return; 
+        }
+
+        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Buscando dados do modelo portador do CPF: {contractMessage.CpfModel}.");
+        var model = await _modelRepository.GetModelByCriteriaAsync(contractMessage.CpfModel);
+
+        if (model == null)
+        {
+            Console.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Modelo {contractMessage.CpfModel} não encontrado na base de dados.");
+            return; 
+        }
+
+        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Dados do modelo: {model.Name} | Portador do CPF: {model.CPF}.");
+
+        foreach (var id in contractMessage.ContractIds)
+        {
+            try
             {
-                query = @"mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) {
-                    createDocument(document: $document, signers: $signers, file: $file) {
-                        id
-                        name
-                        refusable
-                        sortable
-                        created_at
-                        signatures {
-                            public_id
-                            name
-                            email
-                            created_at
-                            action { name }
-                            link { short_link }
-                            user { id name email }
+                if (Guid.TryParse(id, out Guid contractId))
+                {
+                    Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Buscando contrato: {contractId}.");
+                    var contract = await _contractRepository.GetContractById(contractId);
+                    if (contract != null)
+                    {
+                        Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Contrato {contractId} encontrado.");
+                        string contentString = await _contractService.ConvertBytesToString(contract.Content);
+                        byte[] pdfBytes = await _contractService.ExtractBytesFromString(contentString);
+                        string pdfBase64 = Convert.ToBase64String(pdfBytes);
+                        string nameFile = contract.ContractFilePath;
+                        var result = await _autentiqueService.CreateDocumentAsync(nameFile, pdfBase64, model);
+
+                        if (result == null)
+                        {
+                            Console.WriteLine($"[WARN] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Documento não foi criado para o contrato {contractId}.");
                         }
                     }
-                }",
-                variables = new
-                {
-                    document = new { name = documentName },
-                    signers = new[] { new { email = model.Email, action = "SIGN" } },
-                    file = (string)null
+                    else
+                    {
+                        Console.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Erro: Contrato ID {contractId} não encontrado.");
+                    }
                 }
-            });
-
-            string map = JsonConvert.SerializeObject(new { file = new[] { "variables.file" } });
-
-            request.AddParameter("operations", operations);
-            request.AddParameter("map", map);
-
-            byte[] pdfBytes = Convert.FromBase64String(documentBase64);
-            request.AddFile("file", pdfBytes, $"{documentName}.pdf", "application/pdf");
-
-            _logger.LogInfo($"Criando documento {documentName} para o modelo {model.Name}.");
-
-            RestResponse response = client.Execute(request);
-
-            if (!response.IsSuccessful)
-            {
-                _logger.LogError($"Erro ao criar documento no Autentique: {response.StatusCode}");
-                _logger.LogError($"Response Content: {response.Content}");
-                throw new Exception($"Erro ao criar documento: {response.StatusCode} - {response.Content}");
             }
-
-            _logger.LogInfo($"Documento {documentName} criado com sucesso para o modelo {model.Name}.");
-            return $"Contrato de {documentName} gerado para {model.Name} com sucesso.";
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Erro ao processar contrato {id}: {ex.Message}");
+                
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Erro ao criar documento {documentName}.", ex);
-            throw;
-        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - Erro ao processar mensagem: {ex.Message}");
+        
     }
 }
