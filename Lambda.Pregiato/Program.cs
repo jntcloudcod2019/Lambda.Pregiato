@@ -61,8 +61,7 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// Configuração dinâmica da porta
-var port = Environment.GetEnvironmentVariable("PORT") ?? "3030"; // 3030 como fallback
+var port = Environment.GetEnvironmentVariable("PORT") ?? "3030"; 
 app.Urls.Add($"http://0.0.0.0:{port}");
 
 var scope = app.Services.CreateScope();
