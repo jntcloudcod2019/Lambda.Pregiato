@@ -15,7 +15,13 @@ public class AutentiqueService : IAutentiqueService
     public async Task<string> CreateDocumentAsync(string documentName, string documentBase64, Model model)
     {
         var client = new RestClient(_apiUrl);
+
+        Console.WriteLine($"[PROCESS] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Client {client} || URL:{_apiUrl} .");
+
         var request = new RestRequest();
+
+        Console.WriteLine($"[PROCESS] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | REQUEST :{request} .");
+
         request.Method = Method.Post;
 
         request.AddHeader("Authorization", $"Bearer {_token}");
@@ -58,15 +64,19 @@ public class AutentiqueService : IAutentiqueService
         byte[] pdfBytes = Convert.FromBase64String(documentBase64);
         request.AddFile("file", pdfBytes, $"{documentName}.pdf", "application/pdf");
 
+        Console.WriteLine($"[PROCESS] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Convertendo doc para base64 {pdfBytes}.");
+
+        Console.WriteLine($"[PROCESS] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Requisição para api do autentique...");
         RestResponse response = client.Execute(request);
 
         if (!response.IsSuccessful)
         {
             Console.WriteLine($"Erro ao criar documento no autentique: {response.StatusCode}");
-            Console.WriteLine($"Response Content: {response.Content}");
-            
+            Console.WriteLine($"Response Content: {response.Content}");           
         }
 
-        return ($"Contrato de {documentName}, gerado  para{model.Name} com sucesso.");
+        Console.WriteLine($"[PROCESS] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Requisição {response} com êxito...");
+        Console.WriteLine($"[PROCESS] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Contrato de {documentName}, gerado  para {model.Name} com sucesso.");
+        return await Task.FromResult(($"Contrato de {documentName}, gerado para{model.Name} com sucesso."));
     }
 }

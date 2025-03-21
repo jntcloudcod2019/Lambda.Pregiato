@@ -15,11 +15,14 @@ namespace Lambda.Pregiato.Data
 
         public async Task<Model?> GetModelByCriteriaAsync(string query)
         {
+
+          Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Buscando dados do modelo | Parameters: {query}.");
+          
             return await _lambdaContext.Model.FirstOrDefaultAsync(m =>
-                m.CPF == query ||
-                m.RG == query ||
-                m.Name.Contains(query) ||
-                m.IdModel.ToString() == query);
+          m.CPF == query ||
+          m.RG == query ||
+          m.Name.Contains(query) ||
+          m.IdModel.ToString() == query);
         }
     }
 }
