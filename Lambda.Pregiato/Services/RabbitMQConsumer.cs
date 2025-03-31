@@ -17,7 +17,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
     private readonly IAutentiqueService _autentiqueService;
     private readonly LambdaContextDB _lambdaContextDB;
     private readonly ConnectionFactory _factory;
-
+   
     public RabbitMQConsumer(
         IContractRepository contractRepository,
         IContractService contractService,
@@ -106,14 +106,19 @@ public class RabbitMQConsumer : IRabbitMQConsumer
         
         foreach (var id in contractMessage.ContractIds)
         {
+            const string CodProducersPrefix = "PMCA";
+
             if (Guid.TryParse(id, out Guid contractId))
             {
                 Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Buscando contrato: {id}.");
+                
                 var contract = await _contractRepository.GetContractById(contractId);
-                if (contract != null)
+
+                if (!string.IsNullOrEmpty(contract.CodProducers) 
+                    && contract.CodProducers.StartsWith(CodProducersPrefix, 
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Contrato = {id} encontrado.");
-
                     try
                     {
                         string contentString = await _contractService.ConvertBytesToString(contract.Content);
@@ -126,7 +131,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
 
                         Console.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Inciando processo de criar contrato no Autentique.");
 
-                        var result = await _autentiqueService.CreateDocumentAsync(nameFile, pdfBase64, model);
+                        var result = await _autentiqueService.CreateDocumentAsync(nameFile, pdfBase64, model).ConfigureAwait(true);
                     }
                     catch (Exception ex)
                     {
@@ -135,7 +140,7 @@ public class RabbitMQConsumer : IRabbitMQConsumer
                 }
                 else
                 {
-                    Console.WriteLine($" Erro: Contrato ID {contractId} não encontrado.");
+                    Console.WriteLine($"Contrato| CodProducers:{contract.CodProducers} | {contract.ContractFilePath} não é enviado para assinatura.");
                 }
             }
         }
