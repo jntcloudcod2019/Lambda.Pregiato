@@ -4,7 +4,7 @@ namespace Lambda.Pregiato.Interface
 {
     public interface IRabbitMQConsumer
     {
-        Task StartConsuming();
+        public Task StartConsuming();
         Task<string> ProcessMessage(ContractMessage contractMessage);
     }
 }

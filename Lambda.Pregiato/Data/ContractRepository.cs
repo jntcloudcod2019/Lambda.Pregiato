@@ -13,16 +13,18 @@ namespace Lambda.Pregiato.Data
              _lambdaContext = lambdaContext;
         }
 
-        public async Task<Contract> GetContractById(Guid id)
+        public async Task<Contract?> GetContractById(Guid id)
         {
 
            return await _lambdaContext.Contracts
-          .Where(c => c.ContractId == id) 
+               .AsTracking()
+               .Where(c => c.ContractId == id) 
           .Select(c => new Contract  
           {
               ContractId = c.ContractId,   
               ContractFilePath =c.ContractFilePath,
               Content = c.Content,
+              CodProducers = c.CodProducers
           })
           .FirstOrDefaultAsync();
         }
